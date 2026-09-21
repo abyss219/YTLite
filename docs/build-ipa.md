@@ -6,38 +6,42 @@ The build reads the DEB from the selected repository commit. The expected SHA-25
 
 ## Run on GitHub
 
-1. Push the `abyss219-build` branch to your fork and enable Actions if GitHub prompts you.
-2. Let **Build YouTube Plus — abyss219** finish its initial validation run. Branch pushes validate the bundled DEB and build checks; they do not download or build an IPA.
-3. Supply a direct HTTPS URL for a clean, decrypted YouTube IPA. The GitHub runner must be able to download it without an interactive login. The URL must stay valid for the duration of the job.
-4. Trigger an IPA build using GitHub CLI:
+1. Open [Actions → Build YouTube Plus — abyss219](https://github.com/abyss219/YTLite/actions/workflows/build-abyss219.yml).
+2. Click **Run workflow** and leave **Use workflow from: main** selected. The small launcher on `main` calls the build implementation on `abyss219-build`; the patched DEB stays on that branch. Selecting `abyss219-build` also runs the implementation directly.
+3. Enter a direct HTTPS URL for a clean, decrypted YouTube IPA. The GitHub runner must be able to download it without an interactive login. The URL must stay valid for the duration of the job. A local Mac or iCloud filesystem path cannot be used here.
+4. Set the app name and bundle identifier, choose any optional integration checkboxes, and optionally enable a draft release. The bundled DEB is selected automatically. Start with integrations disabled when checking a new YouTube version.
+5. Click the green **Run workflow** button. Open the new run to follow its jobs.
+6. Once it succeeds, download the **YouTubePlus-abyss219-<run number>** artifact. It contains `YouTubePlus_5.2.2_abyss219.ipa`. With **Also attach the IPA to a draft GitHub Release** enabled, the same IPA is attached to a draft release in your fork.
+7. Sign and install the IPA using your sideloading tool, such as Sideloadly. This workflow does not provide an Apple provisioning profile or install the app on an iPhone.
 
-   ```sh
-   gh workflow run build-abyss219.yml \
-     --repo abyss219/YTLite \
-     --ref abyss219-build \
-     -f ipa_url='https://your-host.example/YouTube.ipa'
-   ```
+The launcher is the only additional file on `main`. The DEB, Python build script, checks, and reusable build implementation remain on `abyss219-build`. The launcher grants the called workflow permission to create the optional draft release; its ordinary build jobs use read-only repository permissions.
 
-   Replace the example URL with your real download URL. Optional inputs:
+Branch pushes only validate the bundled DEB and build checks. Use **Run workflow** for an IPA build. GitHub's browser form requires the dispatch workflow on the default branch, as described in [GitHub's manual-run documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
-   | Input | Default |
-   | --- | --- |
-   | `display_name` | `YouTube Plus` |
-   | `bundle_id` | `com.google.ios.youtube` |
-   | `enable_youpip`, `enable_ytuhd`, `enable_yq` | `false` |
-   | `enable_ryd`, `enable_ytabc`, `enable_demc` | `false` |
-   | `create_draft_release` | `false` |
+You can also run the same form through GitHub CLI:
 
-   Add inputs with `-f display_name='YouTube Plus'`, `-f enable_ryd=true`, etc. Start with integrations disabled when checking a new YouTube version.
+```sh
+gh workflow run build-abyss219.yml \
+  --repo abyss219/YTLite \
+  --ref main \
+  -f ipa_url='https://your-host.example/YouTube.ipa'
+```
 
-5. Open the completed run and download the **YouTubePlus-abyss219-<run number>** artifact. It contains `YouTubePlus_5.2.2_abyss219.ipa`. With `create_draft_release=true`, the same IPA is also attached to a draft release in your fork.
-6. Sign and install the IPA using your sideloading tool, such as Sideloadly. This workflow does not provide an Apple provisioning profile or install the app on an iPhone.
+Replace the example URL with your real download URL. To run the implementation directly, use `--ref abyss219-build`. Optional inputs:
 
-GitHub's browser **Run workflow** button depends on the workflow being present on the default branch. A branch-only workflow can first run on `push` and then be dispatched through the CLI/API, as described in [GitHub's workflow event documentation](https://github.com/github/docs/blob/main/content/actions/reference/workflows-and-actions/events-that-trigger-workflows.md#workflow_dispatch). Once the workflow is present on the default branch, use the browser branch selector to choose `abyss219-build`.
+| Input | Default |
+| --- | --- |
+| `display_name` | `YouTube Plus` |
+| `bundle_id` | `com.google.ios.youtube` |
+| `enable_youpip`, `enable_ytuhd`, `enable_yq` | `false` |
+| `enable_ryd`, `enable_ytabc`, `enable_demc` | `false` |
+| `create_draft_release` | `false` |
+
+Add inputs with `-f display_name='YouTube Plus'`, `-f enable_ryd=true`, etc.
 
 ## What the workflow does
 
-- Checks out the triggering commit and verifies the bundled DEB's exact checksum.
+- Resolves the build branch once (or uses the triggering commit for a direct run), verifies the bundled DEB's exact checksum, and uses that same commit for the helper, IPA packaging, run summary, and optional release target.
 - Calls the existing tweak helper with the repository DEB as its single package source. Existing optional integrations and the Safari extension use the helper's existing build path.
 - Pins Cyan to commit `740d3716dcd98c20c000f12cdb88f1f0b2a533a4`.
 - Rejects an encrypted main executable, a non-YouTube input, a previously injected YTLite library, duplicate ZIP entries, unsafe archive paths, and symlink entries.

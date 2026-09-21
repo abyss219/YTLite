@@ -52,6 +52,53 @@ on:
         type: boolean
         default: false
 
+  workflow_call:
+    inputs:
+      ipa_url:
+        description: Direct HTTPS download URL for a clean, decrypted YouTube IPA
+        type: string
+        required: true
+      display_name:
+        description: App name
+        type: string
+        default: YouTube Plus
+      bundle_id:
+        description: App bundle identifier
+        type: string
+        default: com.google.ios.youtube
+      enable_youpip:
+        description: Integrate YouPiP
+        type: boolean
+        default: false
+      enable_ytuhd:
+        description: Integrate YTUHD
+        type: boolean
+        default: false
+      enable_yq:
+        description: Integrate YouQuality
+        type: boolean
+        default: false
+      enable_ryd:
+        description: Integrate Return YouTube Dislikes
+        type: boolean
+        default: false
+      enable_ytabc:
+        description: Integrate YTABConfig
+        type: boolean
+        default: false
+      enable_demc:
+        description: Integrate DontEatMyContent
+        type: boolean
+        default: false
+      create_draft_release:
+        description: Also attach the IPA to a draft GitHub Release
+        type: boolean
+        default: false
+      source_ref:
+        description: Repository ref containing the bundled DEB and build scripts
+        type: string
+        default: abyss219-build
+
 permissions:
   contents: read
 
@@ -70,17 +117,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      source_sha: ${{ steps.package.outputs.source_sha }}
       deb_path: ${{ steps.package.outputs.deb_path }}
       deb_sha256: ${{ steps.package.outputs.deb_sha256 }}
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
       - name: Verify bundled DEB
         id: package
         run: |
           python3 -B scripts/build_ipa.py verify-deb --deb "$DEB_PATH" --sha256 "$DEB_SHA256"
           {
+            printf 'source_sha=%s\n' "$(git rev-parse HEAD)"
             printf 'deb_path=%s\n' "$DEB_PATH"
             printf 'deb_sha256=%s\n' "$DEB_SHA256"
           } >> "$GITHUB_OUTPUT"
@@ -91,7 +141,7 @@ jobs:
     name: Prepare bundled tweak and optional integrations
     if: github.event_name == 'workflow_dispatch'
     needs: validate
-    uses: ./.github/workflows/_build_tweaks.yml
+    uses: abyss219/YTLite/.github/workflows/_build_tweaks.yml@abyss219-build
     with:
       enable_youpip: ${{ inputs.enable_youpip }}
       enable_ytuhd: ${{ inputs.enable_ytuhd }}
@@ -99,6 +149,7 @@ jobs:
       enable_ryd: ${{ inputs.enable_ryd }}
       enable_ytabc: ${{ inputs.enable_ytabc }}
       enable_demc: ${{ inputs.enable_demc }}
+      bundled_tweak_ref: ${{ needs.validate.outputs.source_sha }}
       bundled_tweak_path: ${{ needs.validate.outputs.deb_path }}
       bundled_tweak_sha256: ${{ needs.validate.outputs.deb_sha256 }}
 
@@ -111,6 +162,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.validate.outputs.source_sha }}
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
@@ -136,7 +188,8 @@ jobs:
           "$RUNNER_TEMP/cyan-venv/bin/python" -m pip install "https://github.com/asdfzxcvbn/pyzule-rw/archive/${CYAN_REVISION}.zip"
           printf '%s\n' "$RUNNER_TEMP/cyan-venv/bin" >> "$GITHUB_PATH"
       - name: Prepare download URL
-        # Read from the event file so a signed URL is masked before any step logs it.
+        # The launcher forwards ipa_url unchanged from this dispatch event.
+        # Read it here so a signed URL is masked before any step logs it.
         run: |
           python3 - <<'PY'
           import json, os
@@ -150,6 +203,7 @@ jobs:
           PY
       - name: Inject and verify abyss219 package
         env:
+          SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
           APP_NAME: ${{ inputs.display_name }}
           BUNDLE_ID: ${{ inputs.bundle_id }}
         run: |
@@ -161,7 +215,7 @@ jobs:
             --output output/YouTubePlus_5.2.2_abyss219.ipa
           {
             printf '### YouTube Plus — abyss219\n\n'
-            printf 'Source commit: %s\n\n' "$GITHUB_SHA"
+            printf 'Source commit: %s\n\n' "$SOURCE_SHA"
             printf 'Bundled DEB SHA-256: %s\n\n' "$DEB_SHA256"
             printf 'Cyan revision: %s\n\n' "$CYAN_REVISION"
             printf 'Download the IPA from the run artifacts, then sign and sideload it.\n'
@@ -177,7 +231,7 @@ jobs:
 
   draft-release:
     name: Create optional draft release
-    needs: package
+    needs: [validate, package]
     if: github.event_name == 'workflow_dispatch' && inputs.create_draft_release
     runs-on: ubuntu-latest
     permissions:
@@ -190,7 +244,7 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: abyss219-${{ github.run_id }}-${{ github.run_attempt }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.validate.outputs.source_sha }}
           name: YouTube Plus — abyss219 (${{ github.run_number }})
           files: output/YouTubePlus_5.2.2_abyss219.ipa
           fail_on_unmatched_files: true

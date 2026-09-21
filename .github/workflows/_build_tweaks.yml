@@ -43,6 +43,12 @@ on:
         required: false
         default: ""
 
+      bundled_tweak_ref:
+        description: Commit containing the bundled package and verifier
+        type: string
+        required: false
+        default: ""
+
       bundled_tweak_path:
         type: string
         required: false
@@ -83,6 +89,7 @@ jobs:
         if: ${{ inputs.bundled_tweak_path != '' }}
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.bundled_tweak_ref || github.sha }}
           persist-credentials: false
 
       - name: Verify and stage bundled tweak
