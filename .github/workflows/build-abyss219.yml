@@ -1,0 +1,197 @@
+name: Build YouTube Plus — abyss219
+
+on:
+  push:
+    branches: [abyss219-build]
+    paths:
+      - debs/**
+      - scripts/build_ipa.py
+      - tests/test_build_ipa.py
+      - .github/workflows/build-abyss219.yml
+      - .github/workflows/_build_tweaks.yml
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: Direct HTTPS download URL for a clean, decrypted YouTube IPA
+        type: string
+        required: true
+      display_name:
+        description: App name
+        type: string
+        default: YouTube Plus
+      bundle_id:
+        description: App bundle identifier
+        type: string
+        default: com.google.ios.youtube
+      enable_youpip:
+        description: Integrate YouPiP
+        type: boolean
+        default: false
+      enable_ytuhd:
+        description: Integrate YTUHD
+        type: boolean
+        default: false
+      enable_yq:
+        description: Integrate YouQuality
+        type: boolean
+        default: false
+      enable_ryd:
+        description: Integrate Return YouTube Dislikes
+        type: boolean
+        default: false
+      enable_ytabc:
+        description: Integrate YTABConfig
+        type: boolean
+        default: false
+      enable_demc:
+        description: Integrate DontEatMyContent
+        type: boolean
+        default: false
+      create_draft_release:
+        description: Also attach the IPA to a draft GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  DEB_PATH: debs/com.dvntm.ytlite_5.2.2+abyss219_iphoneos-arm.deb
+  DEB_SHA256: 4eaa5dd92c586eff6cb8ce7a13817ab1a8ae59f876148a67e71400a388c6fdcd
+  CYAN_REVISION: 740d3716dcd98c20c000f12cdb88f1f0b2a533a4
+
+jobs:
+  validate:
+    name: Validate bundled package and build checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      deb_path: ${{ steps.package.outputs.deb_path }}
+      deb_sha256: ${{ steps.package.outputs.deb_sha256 }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Verify bundled DEB
+        id: package
+        run: |
+          python3 -B scripts/build_ipa.py verify-deb --deb "$DEB_PATH" --sha256 "$DEB_SHA256"
+          {
+            printf 'deb_path=%s\n' "$DEB_PATH"
+            printf 'deb_sha256=%s\n' "$DEB_SHA256"
+          } >> "$GITHUB_OUTPUT"
+      - name: Test input and output checks
+        run: python3 -B -m unittest discover -s tests -p test_build_ipa.py -v
+
+  build-tweaks:
+    name: Prepare bundled tweak and optional integrations
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    uses: ./.github/workflows/_build_tweaks.yml
+    with:
+      enable_youpip: ${{ inputs.enable_youpip }}
+      enable_ytuhd: ${{ inputs.enable_ytuhd }}
+      enable_yq: ${{ inputs.enable_yq }}
+      enable_ryd: ${{ inputs.enable_ryd }}
+      enable_ytabc: ${{ inputs.enable_ytabc }}
+      enable_demc: ${{ inputs.enable_demc }}
+      bundled_tweak_path: ${{ needs.validate.outputs.deb_path }}
+      bundled_tweak_sha256: ${{ needs.validate.outputs.deb_sha256 }}
+
+  package:
+    name: Build and inspect IPA
+    needs: [validate, build-tweaks]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: built-debs
+          path: ${{ runner.temp }}/ytlite-tweaks
+      - name: Restore extension executable permissions
+        # Actions artifacts do not preserve Unix executable bits on individual files.
+        run: |
+          python3 - <<'PY'
+          import os, plistlib
+          from pathlib import Path
+          for extension in (Path(os.environ['RUNNER_TEMP']) / 'ytlite-tweaks').glob('*.appex'):
+              with (extension / 'Info.plist').open('rb') as source:
+                  name = plistlib.load(source)['CFBundleExecutable']
+              if not name or Path(name).name != name or name in ('.', '..'):
+                  raise SystemExit('Invalid extension executable name')
+              binary = extension / name
+              binary.chmod(binary.stat().st_mode | 0o111)
+          PY
+      - name: Install pinned Cyan
+        run: |
+          python3 -m venv "$RUNNER_TEMP/cyan-venv"
+          "$RUNNER_TEMP/cyan-venv/bin/python" -m pip install "https://github.com/asdfzxcvbn/pyzule-rw/archive/${CYAN_REVISION}.zip"
+          printf '%s\n' "$RUNNER_TEMP/cyan-venv/bin" >> "$GITHUB_PATH"
+      - name: Prepare download URL
+        # Read from the event file so a signed URL is masked before any step logs it.
+        run: |
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ['GITHUB_EVENT_PATH']) as source:
+              url = json.load(source)['inputs']['ipa_url']
+          if not url or any(c.isspace() for c in url):
+              raise SystemExit('Provide a direct HTTPS IPA URL without whitespace')
+          print('::add-mask::' + url.replace('%', '%25'), flush=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('IPA_URL=' + url + '\n')
+          PY
+      - name: Inject and verify abyss219 package
+        env:
+          APP_NAME: ${{ inputs.display_name }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          python3 -B scripts/build_ipa.py build \
+            --deb "$DEB_PATH" --sha256 "$DEB_SHA256" \
+            --ipa-url "$IPA_URL" \
+            --tweaks-dir "$RUNNER_TEMP/ytlite-tweaks" \
+            --name "$APP_NAME" --bundle-id "$BUNDLE_ID" \
+            --output output/YouTubePlus_5.2.2_abyss219.ipa
+          {
+            printf '### YouTube Plus — abyss219\n\n'
+            printf 'Source commit: %s\n\n' "$GITHUB_SHA"
+            printf 'Bundled DEB SHA-256: %s\n\n' "$DEB_SHA256"
+            printf 'Cyan revision: %s\n\n' "$CYAN_REVISION"
+            printf 'Download the IPA from the run artifacts, then sign and sideload it.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: YouTubePlus-abyss219-${{ github.run_number }}
+          path: output/YouTubePlus_5.2.2_abyss219.ipa
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  draft-release:
+    name: Create optional draft release
+    needs: package
+    if: github.event_name == 'workflow_dispatch' && inputs.create_draft_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: YouTubePlus-abyss219-${{ github.run_number }}
+          path: output
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: abyss219-${{ github.run_id }}-${{ github.run_attempt }}
+          target_commitish: ${{ github.sha }}
+          name: YouTube Plus — abyss219 (${{ github.run_number }})
+          files: output/YouTubePlus_5.2.2_abyss219.ipa
+          fail_on_unmatched_files: true
+          draft: true
