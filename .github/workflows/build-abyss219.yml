@@ -1,0 +1,69 @@
+name: Build YouTube Plus — abyss219
+
+# The web form lives on main; the implementation and DEB stay on abyss219-build.
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: Direct HTTPS download URL for a clean, decrypted YouTube IPA
+        type: string
+        required: true
+      display_name:
+        description: App name
+        type: string
+        default: YouTube Plus
+      bundle_id:
+        description: App bundle identifier
+        type: string
+        default: com.google.ios.youtube
+      enable_youpip:
+        description: Integrate YouPiP
+        type: boolean
+        default: false
+      enable_ytuhd:
+        description: Integrate YTUHD
+        type: boolean
+        default: false
+      enable_yq:
+        description: Integrate YouQuality
+        type: boolean
+        default: false
+      enable_ryd:
+        description: Integrate Return YouTube Dislikes
+        type: boolean
+        default: false
+      enable_ytabc:
+        description: Integrate YTABConfig
+        type: boolean
+        default: false
+      enable_demc:
+        description: Integrate DontEatMyContent
+        type: boolean
+        default: false
+      create_draft_release:
+        description: Also attach the IPA to a draft GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build with abyss219's bundled DEB
+    # Required by the optional draft-release job; the build jobs reduce this to read.
+    permissions:
+      contents: write
+    uses: abyss219/YTLite/.github/workflows/build-abyss219.yml@abyss219-build
+    with:
+      source_ref: abyss219-build
+      ipa_url: ${{ inputs.ipa_url }}
+      display_name: ${{ inputs.display_name }}
+      bundle_id: ${{ inputs.bundle_id }}
+      enable_youpip: ${{ inputs.enable_youpip }}
+      enable_ytuhd: ${{ inputs.enable_ytuhd }}
+      enable_yq: ${{ inputs.enable_yq }}
+      enable_ryd: ${{ inputs.enable_ryd }}
+      enable_ytabc: ${{ inputs.enable_ytabc }}
+      enable_demc: ${{ inputs.enable_demc }}
+      create_draft_release: ${{ inputs.create_draft_release }}
