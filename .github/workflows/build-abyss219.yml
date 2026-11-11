@@ -107,8 +107,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEB_PATH: debs/com.dvntm.ytlite_5.2.2+abyss219_iphoneos-arm.deb
-  DEB_SHA256: 4eaa5dd92c586eff6cb8ce7a13817ab1a8ae59f876148a67e71400a388c6fdcd
+  DEB_PATH: debs/com.dvntm.ytlite_6.0+abyss219_iphoneos-arm.deb
+  DEB_SHA256: 5da39a7da832871acd702f93bbfa3176698be9f765222b12542224d9a792cdfe
   CYAN_REVISION: 740d3716dcd98c20c000f12cdb88f1f0b2a533a4
 
 jobs:
@@ -212,7 +212,7 @@ jobs:
             --ipa-url "$IPA_URL" \
             --tweaks-dir "$RUNNER_TEMP/ytlite-tweaks" \
             --name "$APP_NAME" --bundle-id "$BUNDLE_ID" \
-            --output output/YouTubePlus_5.2.2_abyss219.ipa
+            --output output/YouTubePlus_6.0_abyss219.ipa
           {
             printf '### YouTube Plus — abyss219\n\n'
             printf 'Source commit: %s\n\n' "$SOURCE_SHA"
@@ -224,7 +224,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: YouTubePlus-abyss219-${{ github.run_number }}
-          path: output/YouTubePlus_5.2.2_abyss219.ipa
+          path: output/YouTubePlus_6.0_abyss219.ipa
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -246,6 +246,6 @@ jobs:
           tag_name: abyss219-${{ github.run_id }}-${{ github.run_attempt }}
           target_commitish: ${{ needs.validate.outputs.source_sha }}
           name: YouTube Plus — abyss219 (${{ github.run_number }})
-          files: output/YouTubePlus_5.2.2_abyss219.ipa
+          files: output/YouTubePlus_6.0_abyss219.ipa
           fail_on_unmatched_files: true
           draft: true

@@ -1,7 +1,7 @@
 # YouTube Plus (ex. YTLite)
 A flexible enhancer for YouTube on iOS, featuring over hundred customizable options.
 
-**abyss219 version:** [Build an IPA with the bundled DEB](docs/build-ipa.md).
+**abyss219 6.0 version:** [Build an IPA with the bundled DEB](docs/build-ipa.md).
 
 ## Table of Contents
 - [Screenshots](#screenshots)

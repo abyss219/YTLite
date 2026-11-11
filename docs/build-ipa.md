@@ -1,6 +1,6 @@
 # Build YouTube Plus — abyss219
 
-This branch packages abyss219's audited YouTube Plus 5.2.2 DEB into a decrypted YouTube IPA. The package is stored directly in `debs/`; all DEBs share that directory. Its external filename identifies this edition. Renaming preserves the audited package contents and their checksum.
+This branch packages abyss219's audited YouTube Plus 6.0 rootful DEB into a decrypted YouTube IPA. The current package is `debs/com.dvntm.ytlite_6.0+abyss219_iphoneos-arm.deb`; `debs/` contains only this patched release. Earlier patched releases remain available in Git history.
 
 The build reads the DEB from the selected repository commit. The expected SHA-256 lives in `.github/workflows/build-abyss219.yml`. There are no separate JSON manifests or verification-report files to maintain.
 
@@ -11,7 +11,7 @@ The build reads the DEB from the selected repository commit. The expected SHA-25
 3. Enter a direct HTTPS URL for a clean, decrypted YouTube IPA. The GitHub runner must be able to download it without an interactive login. The URL must stay valid for the duration of the job. A local Mac or iCloud filesystem path cannot be used here.
 4. Set the app name and bundle identifier, choose any optional integration checkboxes, and optionally enable a draft release. The bundled DEB is selected automatically. Start with integrations disabled when checking a new YouTube version.
 5. Click the green **Run workflow** button. Open the new run to follow its jobs.
-6. Once it succeeds, download the **YouTubePlus-abyss219-<run number>** artifact. It contains `YouTubePlus_5.2.2_abyss219.ipa`. With **Also attach the IPA to a draft GitHub Release** enabled, the same IPA is attached to a draft release in your fork.
+6. Once it succeeds, download the **YouTubePlus-abyss219-<run number>** artifact. It contains `YouTubePlus_6.0_abyss219.ipa`. With **Also attach the IPA to a draft GitHub Release** enabled, the same IPA is attached to a draft release in your fork.
 7. Sign and install the IPA using your sideloading tool, such as Sideloadly. This workflow does not provide an Apple provisioning profile or install the app on an iPhone.
 
 The launcher is the only additional file on `main`. The DEB, Python build script, checks, and reusable build implementation remain on `abyss219-build`. The launcher grants the called workflow permission to create the optional draft release; its ordinary build jobs use read-only repository permissions.
@@ -63,10 +63,10 @@ python3 -m venv /private/tmp/ytlite-cyan
 
 python3 -B scripts/build_ipa.py build \
   --input '/absolute/path/YouTube.ipa' \
-  --deb 'debs/com.dvntm.ytlite_5.2.2+abyss219_iphoneos-arm.deb' \
-  --sha256 4eaa5dd92c586eff6cb8ce7a13817ab1a8ae59f876148a67e71400a388c6fdcd \
+  --deb 'debs/com.dvntm.ytlite_6.0+abyss219_iphoneos-arm.deb' \
+  --sha256 5da39a7da832871acd702f93bbfa3176698be9f765222b12542224d9a792cdfe \
   --cyan /private/tmp/ytlite-cyan/bin/cyan \
-  --output packages/YouTubePlus_5.2.2_abyss219.ipa
+  --output packages/YouTubePlus_6.0_abyss219.ipa
 ```
 
 This local command injects the primary DEB. Pass `--tweaks-dir /path/to/prepared-tweaks` to include helper-built integrations and an `.appex` directory. The output path must be unused; the input IPA remains unchanged.
@@ -78,10 +78,10 @@ python3 -B -m unittest discover -s tests -p test_build_ipa.py -v
 actionlint .github/workflows/build-abyss219.yml .github/workflows/_build_tweaks.yml
 ```
 
-The DEB retains the previous static and CPU-emulation audit. IPA structure and successful injection do not prove real-device launch or every feature's compatibility with a particular YouTube release. Account-management UI and authentication network code remain present. Sign and test the resulting app on your iPhone before relying on it.
+The 6.0 DEB passed three rounds of static review, ARM64 emulation, package and signature checks, and a byte-identical independent rebuild. IPA structure and successful injection do not prove real-device launch or every feature's compatibility with a particular YouTube release. Account-management UI and authentication network code remain present. Sign and test the resulting app on your iPhone before relying on it.
 
 ## Local validation performed
 
-The complete base build was tested with decrypted YouTube **21.24.3**, the bundled DEB, pinned Cyan, and the Safari extension. Injection completed and the output checks passed: audited ARM64 executable sections preserved, 16 bundle resources preserved, and the hook runtime's dependencies resolved, including Swift libraries supplied by iOS. The original IPA was unchanged.
+The 6.0 base build was tested with decrypted YouTube **21.24.3**, the bundled DEB, and pinned Cyan. Injection completed and the output checks passed: audited ARM64 executable sections preserved, all 18 bundle resources preserved, and the hook runtime's dependencies resolved. The original IPA was unchanged.
 
-The 15 focused Python tests, six helper source-selection cases, and actionlint for the new workflow and updated helper passed. Optional integration combinations and real-device launch were not exercised by that local test.
+The ARM64 checks covered 228 preference cases, all 328 preference wrappers, and 104 startup registrations. The 15 focused Python tests and actionlint for the build workflow and helper passed. Optional integration combinations, the Safari extension with 6.0, and real-device launch were not exercised by this local test.
