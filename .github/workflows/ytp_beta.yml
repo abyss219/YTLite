@@ -39,6 +39,12 @@ on:
         required: true
         default: false
 
+      enable_localization:
+        description: "Update localization files from repo"
+        type: boolean
+        required: true
+        default: false
+
       ipa_url:
         description: "URL to the decrypted IPA file"
         default: ""
@@ -83,6 +89,7 @@ jobs:
       enable_ryd: ${{ inputs.enable_ryd }}
       enable_ytabc: ${{ inputs.enable_ytabc }}
       enable_demc: ${{ inputs.enable_demc }}
+      enable_localization: ${{ inputs.enable_localization }}
       tweak_url: ${{ inputs.tweak_url }}
 
   package:
@@ -102,7 +109,7 @@ jobs:
       - name: Hide sensitive inputs
         uses: levibostian/action-hide-sensitive-inputs@v1
         with:
-          exclude_inputs: bundle_id,display_name,enable_demc,enable_ryd,enable_ytabc,enable_youpip,enable_yq,enable_ytuhd,info_note
+          exclude_inputs: bundle_id,display_name,enable_demc,enable_ryd,enable_ytabc,enable_youpip,enable_yq,enable_ytuhd,enable_localization,info_note
 
       - name: Download and validate IPA
         run: |
@@ -112,6 +119,17 @@ jobs:
             echo "::error::Validation failed: The downloaded file is not a valid IPA. Detected type: $file_type."
             exit 1
           fi
+
+      - name: Patch Info.plist
+        run: |
+          unzip -q youtube.ipa -d ipa_tmp
+          plist="$(find ipa_tmp/Payload -maxdepth 1 -name '*.app' | head -n 1)/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :UIDesignRequiresCompatibility" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :NSFaceIDUsageDescription" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string 'Face ID is required to authenticate.'" "$plist"
+          rm youtube.ipa
+          (cd ipa_tmp && zip -qry ../youtube.ipa .)
+          rm -rf ipa_tmp
 
       - name: Install cyan
         run: pipx install --force https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
